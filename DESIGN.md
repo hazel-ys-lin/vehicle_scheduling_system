@@ -285,6 +285,8 @@ erDiagram
 GET    /api/v1/vehicles              列出所有車輛
 POST   /api/v1/vehicles              建立車輛
 GET    /api/v1/vehicles/{id}         取得單一車輛
+PATCH  /api/v1/vehicles/{id}         更新車輛（name / battery_level）
+DELETE /api/v1/vehicles/{id}         刪除車輛（有關聯行程時 409）
 
 GET    /api/v1/blocks                列出所有區塊設定
 PUT    /api/v1/blocks/{block_id}     更新區塊通行時間
@@ -301,6 +303,8 @@ POST   /api/v1/schedule/generate     自動生成無衝突排班
 
 GET    /api/v1/topology              拓撲圖 + 區塊時間 + 電池常數（Bonus 2 後端）
 GET    /api/v1/topology/positions    指定時刻所有車輛位置 + 電量（Bonus 2 後端）
+
+POST   /graphql                       唯讀 GraphQL gateway（Bundle D）
 ```
 
 ### 6.2 設計評估
@@ -625,11 +629,13 @@ verify: per-platform 相鄰出發時間差 ≤ interval（乘客等待保證）
 
 ```
 tests/
-├── conftest.py               — 共用 fixtures（Postgres container、client、自動 truncate）
-├── test_path_validator.py    — 純邏輯單元測試（無 DB）
-├── test_conflict_detector.py — 純邏輯單元測試（無 DB）
-├── test_services_api.py      — API 整合測試（真實 PostgreSQL）
-└── test_schedule_generator.py — 自動排班整合測試（真實 PostgreSQL）
+├── conftest.py                — 共用 fixtures（Postgres container、client、自動 truncate）
+├── test_path_validator.py     — 純邏輯單元測試（無 DB）
+├── test_conflict_detector.py  — 純邏輯單元測試（無 DB）
+├── test_services_api.py       — API 整合測試（真實 PostgreSQL）
+├── test_schedule_generator.py — 自動排班整合測試
+├── test_topology_api.py       — Topology / positions API（Bonus 2 後端）
+└── test_graphql_api.py        — 唯讀 GraphQL gateway（Bundle D）
 ```
 
 **分層設計理由**：
@@ -689,8 +695,9 @@ tests/
 | `test_end_before_start_rejected` | 輸入驗證（422）|
 | `test_interval_must_be_positive` | 輸入驗證（422）|
 | `test_nonexistent_vehicle_returns_404` | 車輛 ID 不存在 |
-| `test_single_vehicle_produces_services` | 最小可行路徑 |
+| `test_single_vehicle_produces_services` | 最小可行路徑 + 產出無衝突 |
 | `test_multi_vehicles_are_offset_and_no_conflicts` | 多車 `interval / N` offset 生效且無衝突 |
+| `test_generated_schedule_has_no_battery_conflicts` | Yard charge 正確計入 → 無 `insufficient_charge` / `low_battery` |
 
 ### 8.3 測試基礎設施（testcontainers）
 
@@ -708,7 +715,7 @@ tests/
 - **NullPool 是必要的**：`pytest-asyncio` 預設每個 test 新開 event loop。engine 若用預設 QueuePool，上一個 loop 留下的 asyncpg 連線會被下個 loop checkout，觸發 `cannot perform operation: another operation is in progress`。改用 `NullPool` 每次 checkout 開新連線即可。
 - **`settings.database_url` 需在 alembic upgrade 之前就被改**：env.py 讀的是 `from app.config import settings` 這個單例，直接 mutate 屬性就行。
 - **容器的 connection URL 明確指定 `driver="asyncpg"`**：`PostgresContainer` 預設給 psycopg2 格式，async engine 吃不下。
-- **為何用 TRUNCATE 而非 transaction rollback**：nested savepoint 更快，但 FastAPI 每個 request 自己開 session，要共享 outer transaction 需要改動應用程式碼；truncate 簡單、可靠、速度足夠（整套 66 tests ~10s）。
+- **為何用 TRUNCATE 而非 transaction rollback**：nested savepoint 更快，但 FastAPI 每個 request 自己開 session，要共享 outer transaction 需要改動應用程式碼；truncate 簡單、可靠、速度足夠（整套 93 tests ~23s）。
 
 ### 8.4 測試設計評估
 
@@ -891,13 +898,13 @@ tests/
 | 函數 | 複雜度 | 主導變數 | 熱點位置 |
 |------|--------|---------|---------|
 | `validate_path` | O(N) | N = 路徑節點數 | 單迴圈，無嵌套 |
-| `reachable_from`（BFS）| O(V + E) | 拓撲大小 | 圖目前固定 21 節點、21 條邊，視同常數 |
+| `reachable_from`（BFS）| O(V + E) | 拓撲大小 | 圖目前固定 21 節點、28 條有向邊，視同常數 |
 | `interlocking_group_for` | O(G) | G = 互鎖群組數 | 線性掃描 groups（目前 G = 3）|
-| `detect_block_conflicts` | **O(N²)** | N = 所有服務的 block interval 總數 | [conflict_detector.py:87-119](app/logic/conflict_detector.py#L87-L119) 兩兩比對 |
-| `detect_vehicle_conflicts` | O(Σ K²) ≈ O(M²) 最壞 | K = 同車服務數；M = 總服務數 | [conflict_detector.py:192-208](app/logic/conflict_detector.py#L192-L208) |
+| `detect_block_conflicts` | **O(N²)** | N = 所有服務的 block interval 總數 | [conflict_detector.py](app/logic/conflict_detector.py) `detect_block_conflicts` 兩兩比對 |
+| `detect_vehicle_conflicts` | O(Σ K²) ≈ O(M²) 最壞 | K = 同車服務數；M = 總服務數 | [conflict_detector.py](app/logic/conflict_detector.py) `detect_vehicle_conflicts` |
 | `detect_battery_conflicts` | O(S) | S = 單服務 stop 數 | 單迴圈 |
 | `build_snapshots` | O(M · S) | 線性組合 | - |
-| `generate_schedule` | **O(V · T · G²)** → 總工作量 ≈ O(G³) | V = 車數、T = 時間槽、G = 累積服務數 | [schedule_generator.py:149-196](app/logic/schedule_generator.py#L149-L196) 每槽都跑完整 conflict 檢查 |
+| `generate_schedule` | **O(V · T · G²)** → 總工作量 ≈ O(G³) | V = 車數、T = 時間槽、G = 累積服務數 | [schedule_generator.py](app/logic/schedule_generator.py) `generate_schedule`：每槽都跑完整 conflict 檢查 |
 
 三個真正的嵌套熱點：`detect_block_conflicts`、`detect_vehicle_conflicts`、`generate_schedule` 內部 loop + conflict 檢查。
 
