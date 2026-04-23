@@ -1,5 +1,7 @@
 # Vehicle Scheduling System
 
+[![CI](https://github.com/hazel-ys-lin/vehicle_scheduling_system/actions/workflows/ci.yml/badge.svg)](https://github.com/hazel-ys-lin/vehicle_scheduling_system/actions/workflows/ci.yml)
+
 固定軌道網絡上的車輛調度後端服務，純 REST API。功能涵蓋車輛 / 服務 CRUD、路徑驗證、衝突偵測（區塊 / 互鎖 / 電池 / 同車多服務）、以及自動排班生成。
 
 詳細設計請見 [DESIGN.md](DESIGN.md)。

@@ -144,12 +144,12 @@ P2B -> B12 -> B13 -> P1A
 ```mermaid
 graph TD
     subgraph "API Layer (FastAPI)"
-        V[/vehicles]
-        B[/blocks]
-        S[/services]
-        SC[/schedule]
-        CF[/schedule/conflicts]
-        GEN[/schedule/generate]
+        V["/vehicles"]
+        B["/blocks"]
+        S["/services"]
+        SC["/schedule"]
+        CF["/schedule/conflicts"]
+        GEN["/schedule/generate"]
     end
 
     subgraph "Logic Layer"
@@ -255,11 +255,13 @@ block_configs
 | `BATTERY_MIN_DEPARTURE` | 80.0 | % | 服務出發門檻；低於則觸發 `INSUFFICIENT_CHARGE` |
 | `BATTERY_THRESHOLD` | 30.0 | % | 低電量警戒線；在回到 Y 之前掉到此線以下觸發 `LOW_BATTERY` |
 | `BATTERY_COST_PER_BLOCK` | 1.0 | % / block | 通過一個 block 扣 1% |
-| `BATTERY_CHARGE_RATE` | 1/12 | % / sec | 在 Y 充電的速率（預留；目前尚未觸發自動充電） |
+| `BATTERY_CHARGE_RATE` | 1/12 | % / sec | 在 Y 停留期間的充電速率 |
+| `BATTERY_BASELINE_EPOCH` | 1970-01-01 UTC | — | BASELINE ledger event 的 `occurred_at`；確保任何現實排班 `start_time` 都在其之後 |
 
 **電池行為模型**：
 - 通過每個 block 扣 `BATTERY_COST_PER_BLOCK`。
-- `departure_battery` 在 `ServiceSnapshot` 建構時自 `vehicle.battery_level` 取值（見 [app/logic/snapshots.py](app/logic/snapshots.py)），尚未實作「完成服務回到 Y 後自動回充」，因此每次手動建立服務都以車輛當下電量為出發點。
+- `departure_battery` = `battery_before(start_time)` + 本次排班產生的 `YARD_CHARGE` delta（ledger 投影，見 [app/logic/battery.py](app/logic/battery.py) 與 [app/logic/snapshots.py](app/logic/snapshots.py)）。
+- 自動排班生成器（Bonus 3）在每個 slot 前依據車輛上一趟結束後在 Y 停留的秒數 × `BATTERY_CHARGE_RATE` 計算充電量，capped 到 `BATTERY_MAX`，落成 `YARD_CHARGE` event。手動建立的 service 不自動充電（呼叫端自行 PATCH `battery_level` 或等待前一筆 service 的 consume 再重算）。
 - `DEFAULT_ROUND_TRIP` 經過 10 個 block，預估耗電 10%；搭配出發門檻 80%，結束電量約 70% > 30%，在預設配置下恆合法。
 
 ---
