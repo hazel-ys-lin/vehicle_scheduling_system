@@ -10,17 +10,13 @@ def t(minutes: float) -> str:
 
 
 async def gql(client, query: str, variables: dict | None = None) -> dict:
-    r = await client.post(
-        "/graphql", json={"query": query, "variables": variables or {}}
-    )
+    r = await client.post("/graphql", json={"query": query, "variables": variables or {}})
     assert r.status_code == 200, r.text
     return r.json()
 
 
 async def _create_vehicle(client, name: str = "v1", battery: float = 80.0) -> int:
-    r = await client.post(
-        "/api/v1/vehicles", json={"name": name, "battery_level": battery}
-    )
+    r = await client.post("/api/v1/vehicles", json={"name": name, "battery_level": battery})
     assert r.status_code == 201, r.text
     return r.json()["id"]
 

@@ -110,9 +110,7 @@ async def _load_vehicle_services(
 
 
 async def _lock_vehicle(db: AsyncSession, vehicle_id: int) -> Vehicle | None:
-    result = await db.execute(
-        select(Vehicle).where(Vehicle.id == vehicle_id).with_for_update()
-    )
+    result = await db.execute(select(Vehicle).where(Vehicle.id == vehicle_id).with_for_update())
     return result.scalar_one_or_none()
 
 
@@ -232,15 +230,19 @@ async def update_service(
         if all_errors:
             raise HTTPException(status_code=422, detail=all_errors)
 
-    stops_for_check = payload.stops if payload.stops is not None else [
-        ServiceStopCreate(
-            sequence=s.sequence,
-            node_id=s.node_id,
-            arrival_time=s.arrival_time,
-            departure_time=s.departure_time,
-        )
-        for s in service.stops
-    ]
+    stops_for_check = (
+        payload.stops
+        if payload.stops is not None
+        else [
+            ServiceStopCreate(
+                sequence=s.sequence,
+                node_id=s.node_id,
+                arrival_time=s.arrival_time,
+                departure_time=s.departure_time,
+            )
+            for s in service.stops
+        ]
+    )
 
     reassigning = payload.vehicle_id is not None and payload.vehicle_id != service.vehicle_id
     block_traversal = await get_block_traversal(db)

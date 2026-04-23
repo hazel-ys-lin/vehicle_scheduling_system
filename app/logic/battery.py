@@ -19,9 +19,7 @@ from app.models.battery_event import BatteryEvent, BatteryEventType
 from app.topology import BATTERY_COST_PER_BLOCK, BATTERY_INITIAL, is_block
 
 
-async def _sum(
-    db: AsyncSession, vehicle_id: int, upper: datetime | None, strict: bool
-) -> float:
+async def _sum(db: AsyncSession, vehicle_id: int, upper: datetime | None, strict: bool) -> float:
     stmt = select(func.coalesce(func.sum(BatteryEvent.delta), 0.0)).where(
         BatteryEvent.vehicle_id == vehicle_id
     )

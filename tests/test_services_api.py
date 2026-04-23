@@ -138,9 +138,7 @@ class TestServicesApi:
         # second service on same vehicle overlapping in time
         r2 = await client.post("/api/v1/services", json=_short_path_payload(vid, offset=1))
         assert r2.status_code == 409
-        assert any(
-            c["conflict_type"] == "vehicle_overlap" for c in r2.json()["error"]["conflicts"]
-        )
+        assert any(c["conflict_type"] == "vehicle_overlap" for c in r2.json()["error"]["conflicts"])
 
     async def test_same_vehicle_discontinuity_returns_409(self, client):
         vid = await _create_vehicle(client)
@@ -151,8 +149,7 @@ class TestServicesApi:
         r2 = await client.post("/api/v1/services", json=_short_path_payload(vid, offset=10))
         assert r2.status_code == 409
         assert any(
-            c["conflict_type"] == "vehicle_discontinuity"
-            for c in r2.json()["error"]["conflicts"]
+            c["conflict_type"] == "vehicle_discontinuity" for c in r2.json()["error"]["conflicts"]
         )
 
     async def test_vehicle_not_found_on_create(self, client):
@@ -189,9 +186,7 @@ class TestServicesApi:
         # Reassign s1 to v2 — the two services on v2 now overlap.
         r = await client.put(f"/api/v1/services/{s1['id']}", json={"vehicle_id": v2})
         assert r.status_code == 409
-        assert any(
-            c["conflict_type"] == "vehicle_overlap" for c in r.json()["error"]["conflicts"]
-        )
+        assert any(c["conflict_type"] == "vehicle_overlap" for c in r.json()["error"]["conflicts"])
 
     async def test_path_starting_with_block_rejected(self, client):
         """Paths must start at yard or platform, not a block (A4)."""

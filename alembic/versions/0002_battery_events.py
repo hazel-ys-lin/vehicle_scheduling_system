@@ -46,9 +46,7 @@ def upgrade() -> None:
         sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("delta", sa.Numeric(5, 2), nullable=False),
     )
-    op.create_index(
-        "ix_batt_vehicle_time", "battery_events", ["vehicle_id", "occurred_at"]
-    )
+    op.create_index("ix_batt_vehicle_time", "battery_events", ["vehicle_id", "occurred_at"])
 
     op.add_column(
         "services",

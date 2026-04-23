@@ -48,9 +48,7 @@ def _node_status(node_id: str) -> VehicleStatus:
     return VehicleStatus.IDLE  # should not happen for known topology
 
 
-def _battery_cost_at(
-    snapshots: list[ServiceSnapshot], at: datetime, mode: PositionMode
-) -> float:
+def _battery_cost_at(snapshots: list[ServiceSnapshot], at: datetime, mode: PositionMode) -> float:
     """Cumulative battery drain across all this vehicle's snapshots by `at`.
 
     - A block whose exit_time <= at contributes a full BATTERY_COST_PER_BLOCK.

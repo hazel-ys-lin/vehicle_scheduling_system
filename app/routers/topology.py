@@ -75,11 +75,7 @@ async def get_topology(db: AsyncSession = Depends(get_db)):
         )
         for b in sorted(BLOCKS)
     ]
-    edges = [
-        EdgeInfo(from_node=src, to=dst)
-        for src, dsts in ADJACENCY.items()
-        for dst in dsts
-    ]
+    edges = [EdgeInfo(from_node=src, to=dst) for src, dsts in ADJACENCY.items() for dst in dsts]
 
     return TopologyRead(
         yard=YARD,

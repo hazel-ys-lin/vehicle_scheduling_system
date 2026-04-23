@@ -42,9 +42,7 @@ class TestTopologyEndpoint:
         assert r.status_code == 200
         body = r.json()
         assert body["yard"] == "Y"
-        assert {p["id"] for p in body["platforms"]} == {
-            "P1A", "P1B", "P2A", "P2B", "P3A", "P3B"
-        }
+        assert {p["id"] for p in body["platforms"]} == {"P1A", "P1B", "P2A", "P2B", "P3A", "P3B"}
         assert all(p["station"] in {"S1", "S2", "S3"} for p in body["platforms"])
         assert len(body["blocks"]) == 14
         b1 = next(b for b in body["blocks"] if b["id"] == "B1")
@@ -74,9 +72,7 @@ class TestPositionsEndpoint:
 
     async def test_idle_at_yard_before_any_service(self, client):
         await _create_vehicle(client, name="v1", battery=72.5)
-        r = await client.get(
-            "/api/v1/topology/positions", params={"at": t(-10)}
-        )
+        r = await client.get("/api/v1/topology/positions", params={"at": t(-10)})
         assert r.status_code == 200
         (pos,) = r.json()
         assert pos["status"] == "idle"

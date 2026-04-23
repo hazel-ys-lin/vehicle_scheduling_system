@@ -19,8 +19,8 @@ async def _seed_block_configs() -> None:
     """
     rows = [{"block_id": b, "traversal_seconds": 60} for b in sorted(BLOCKS)]
     async with AsyncSessionLocal() as session:
-        stmt = pg_insert(BlockConfig).values(rows).on_conflict_do_nothing(
-            index_elements=["block_id"]
+        stmt = (
+            pg_insert(BlockConfig).values(rows).on_conflict_do_nothing(index_elements=["block_id"])
         )
         await session.execute(stmt)
         await session.commit()

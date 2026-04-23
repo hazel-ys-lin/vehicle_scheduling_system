@@ -23,9 +23,7 @@ class BatteryEventType(StrEnum):
 
 class BatteryEvent(Base):
     __tablename__ = "battery_events"
-    __table_args__ = (
-        Index("ix_batt_vehicle_time", "vehicle_id", "occurred_at"),
-    )
+    __table_args__ = (Index("ix_batt_vehicle_time", "vehicle_id", "occurred_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     vehicle_id: Mapped[int] = mapped_column(

@@ -102,11 +102,7 @@ class Query:
     ) -> list[ServiceGQL]:
         async with info.context["db_lock"]:
             db = info.context["db"]
-            stmt = (
-                select(Service)
-                .options(selectinload(Service.stops))
-                .order_by(Service.id)
-            )
+            stmt = select(Service).options(selectinload(Service.stops)).order_by(Service.id)
             if id is not None:
                 stmt = stmt.where(Service.id == id)
             if vehicle_id is not None:
@@ -119,9 +115,7 @@ class Query:
         async with info.context["db_lock"]:
             db = info.context["db"]
             result = await db.execute(
-                select(Service)
-                .options(selectinload(Service.stops))
-                .order_by(Service.id)
+                select(Service).options(selectinload(Service.stops)).order_by(Service.id)
             )
             services = list(result.scalars().all())
             far_past = datetime.min.replace(tzinfo=UTC)
@@ -192,9 +186,7 @@ class Query:
                 for b in sorted_members:
                     group_id_for[b] = idx
 
-            platforms = [
-                PlatformGQL(id=p, station=_station_of(p)) for p in sorted(PLATFORMS)
-            ]
+            platforms = [PlatformGQL(id=p, station=_station_of(p)) for p in sorted(PLATFORMS)]
             blocks_out = [
                 BlockGQL(
                     id=b,
@@ -205,9 +197,7 @@ class Query:
                 for b in sorted(BLOCKS)
             ]
             edges = [
-                EdgeGQL(from_node=src, to=dst)
-                for src, dsts in ADJACENCY.items()
-                for dst in dsts
+                EdgeGQL(from_node=src, to=dst) for src, dsts in ADJACENCY.items() for dst in dsts
             ]
 
             return TopologyGQL(
@@ -239,17 +229,11 @@ class Query:
         async with info.context["db_lock"]:
             db = info.context["db"]
 
-            vehicles = (
-                await db.execute(select(Vehicle).order_by(Vehicle.id))
-            ).scalars().all()
-            vehicles_base_battery = {
-                v.id: await non_service_battery(db, v.id) for v in vehicles
-            }
+            vehicles = (await db.execute(select(Vehicle).order_by(Vehicle.id))).scalars().all()
+            vehicles_base_battery = {v.id: await non_service_battery(db, v.id) for v in vehicles}
 
             services_result = await db.execute(
-                select(Service).options(
-                    selectinload(Service.stops), selectinload(Service.vehicle)
-                )
+                select(Service).options(selectinload(Service.stops), selectinload(Service.vehicle))
             )
             traversal = await get_block_traversal(db)
             snapshots_by_vehicle: dict[int, list] = {}

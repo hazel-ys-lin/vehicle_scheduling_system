@@ -113,7 +113,6 @@ class TestGenerateSchedule:
 
         conflicts = (await client.get("/api/v1/schedule/conflicts")).json()
         battery_conflicts = [
-            c for c in conflicts
-            if c["conflict_type"] in ("insufficient_charge", "low_battery")
+            c for c in conflicts if c["conflict_type"] in ("insufficient_charge", "low_battery")
         ]
         assert battery_conflicts == [], battery_conflicts

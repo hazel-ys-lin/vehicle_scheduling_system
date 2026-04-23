@@ -41,9 +41,7 @@ def _envelope(
     return JSONResponse(status_code=status_code, content={"error": payload})
 
 
-async def http_exception_handler(
-    request: Request, exc: StarletteHTTPException
-) -> JSONResponse:
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     code = _STATUS_CODE_MAP.get(exc.status_code, "ERROR")
     detail = exc.detail
 
@@ -67,10 +65,7 @@ async def validation_exception_handler(
         422,
         "VALIDATION_FAILED",
         message="Input validation failed.",
-        fields=[
-            {"loc": list(e["loc"]), "msg": e["msg"], "type": e["type"]}
-            for e in exc.errors()
-        ],
+        fields=[{"loc": list(e["loc"]), "msg": e["msg"], "type": e["type"]} for e in exc.errors()],
     )
 
 

@@ -33,9 +33,7 @@ def validate_path(nodes: list[str]) -> list[str]:
 
     first = nodes[0]
     if first != YARD and first not in PLATFORMS:
-        errors.append(
-            f"Path must start at the yard or a platform, not a block: '{first}'."
-        )
+        errors.append(f"Path must start at the yard or a platform, not a block: '{first}'.")
 
     for i in range(len(nodes) - 1):
         src, dst = nodes[i], nodes[i + 1]

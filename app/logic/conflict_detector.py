@@ -130,9 +130,7 @@ def detect_block_conflicts(snapshots: list[ServiceSnapshot]) -> list[Conflict]:
             Conflict(
                 conflict_type=ConflictType.INTERLOCKING,
                 service_ids=[sid_a, sid_b],
-                description=(
-                    f"Services {sid_a} and {sid_b} conflict on block(s) {sorted_locs}."
-                ),
+                description=(f"Services {sid_a} and {sid_b} conflict on block(s) {sorted_locs}."),
                 locations=sorted_locs,
             )
         )
