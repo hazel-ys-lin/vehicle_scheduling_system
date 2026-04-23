@@ -15,6 +15,7 @@
 ## 一鍵啟動
 
 ```bash
+cp .env.example .env   # 依需要改 POSTGRES_PASSWORD
 docker compose up --build
 ```
 
