@@ -86,7 +86,7 @@ uv run ruff check
   - **Position 電量用線性內插 vs. conflict_detector 用 step function**：前者讓前端繪製平滑下降曲線（每一幀位置都不同）；後者保證「過一個 block 扣一單位」的整數不變量，對衝突偵測語意乾淨。兩者刻意**不統一**：顯示用連續值、判斷用離散值，誰誤差都小於 1 單位，不會造成 API 表現矛盾。已在 [app/logic/positions.py](app/logic/positions.py) docstring 註明。
   - **Idle 時 `current_node` 取上一個服務終點**：避免前端看到車輛從畫面消失；缺點：如果使用者相信那台車真的在 P1A 月台（其實已經沒在服務中），可能誤判。靠 `status="idle"` 讓客戶端以灰色 / 虛線呈現以區分。
   - **不提供 WebSocket / SSE**：保持純 REST。若要真即時推送，需要另一套連線管理與授權層，超過作業範圍。
-- **Day-1 衛生升級（Bundle A）**（詳見 [DESIGN.md §9.11](DESIGN.md#911-bundle-aapi--演算法衛生升級)）：
+- **Day-1 hygiene 升級（Bundle A）**（詳見 [DESIGN.md §9.11](DESIGN.md#911-bundle-aapi--演算法-hygiene-升級)）：
   - `detect_block_conflicts` 先按 `enter` 排序 + early exit，同一對 service × 多 block 衝突聚合為單筆 `Conflict`（新增 `locations: list[str]`）
   - `ServiceStopCreate` / `GenerateRequest` 改用 Pydantic v2 `AwareDatetime`，naive datetime 在 schema 邊界即擋
   - `/topology/positions` 新增 `mode=simulation|strict`：前者線性內插（UI 平滑）、後者 step function 與 conflict detector 對齊（審計用）

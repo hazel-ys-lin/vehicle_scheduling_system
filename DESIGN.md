@@ -191,36 +191,47 @@ graph TD
 
 ### 5.1 ER Diagram
 
-```
-vehicles
-├── id          SERIAL PK
-├── name        VARCHAR(100) UNIQUE NOT NULL
-└── battery_level FLOAT DEFAULT 80 CHECK(0..100)
-        │
-        │ 1:N
-        ▼
-services
-├── id          SERIAL PK
-├── vehicle_id  FK → vehicles.id NOT NULL
-├── created_at  TIMESTAMPTZ DEFAULT now()
-└── updated_at  TIMESTAMPTZ DEFAULT now()
-        │
-        │ 1:N (cascade delete)
-        ▼
-service_stops
-├── id           SERIAL PK
-├── service_id   FK → services.id ON DELETE CASCADE NOT NULL
-├── sequence     INTEGER NOT NULL
-├── node_id      VARCHAR(10) NOT NULL
-├── arrival_time TIMESTAMPTZ (NULL for block nodes)
-└── departure_time TIMESTAMPTZ (NULL for block nodes)
-UNIQUE(service_id, sequence)
-INDEX(service_id)
+```mermaid
+erDiagram
+    vehicles ||--o{ services : "owns"
+    vehicles ||--o{ battery_events : "accrues"
+    services ||--o{ service_stops : "has (cascade)"
+    services ||--o{ battery_events : "consume events (cascade)"
 
-block_configs
-├── block_id          VARCHAR PK ("B1".."B14")
-└── traversal_seconds INTEGER DEFAULT 60
+    vehicles {
+        int id PK
+        varchar100 name UK
+    }
+    services {
+        int id PK
+        int vehicle_id FK
+        float departure_battery "write-time cache from ledger"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    service_stops {
+        int id PK
+        int service_id FK "cascade"
+        int sequence "UNIQUE(service_id, sequence)"
+        varchar10 node_id
+        timestamptz arrival_time "NULL for block nodes"
+        timestamptz departure_time "NULL for block nodes"
+    }
+    block_configs {
+        varchar10 block_id PK
+        int traversal_seconds "default 60"
+    }
+    battery_events {
+        int id PK
+        int vehicle_id FK "cascade"
+        int service_id FK "nullable, cascade"
+        enum event_type "BASELINE | SERVICE_CONSUME | YARD_CHARGE | MANUAL_ADJUST"
+        timestamptz occurred_at
+        numeric delta "(5,2) signed"
+    }
 ```
+
+電量模型目前走 append-only ledger（`battery_events`），`vehicles` 沒有 `battery_level` 欄位；`services.departure_battery` 是 write-time 投影快取（見 §9.12 Bundle B）。
 
 ### 5.2 設計決策說明
 
@@ -820,7 +831,7 @@ tests/
 | C5 | `path_validator` 用 `list.pop(0)` 做 BFS 是 O(N) | 改用 `collections.deque.popleft()` |
 | C7 | hard-coded `80.0` 出現在 service create 路徑 | 改用 `BATTERY_INITIAL` 常數 |
 
-### 9.11 Bundle A：API / 演算法衛生升級
+### 9.11 Bundle A：API / 演算法 hygiene 升級
 
 為 day-1 架構投資，清掉先前擬答中點名的 stylistic / semantic 弱點。
 
