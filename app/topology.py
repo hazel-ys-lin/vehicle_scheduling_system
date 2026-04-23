@@ -5,6 +5,7 @@ Outbound:  Y → B1/B2 → P1A/P1B → B3/B4 → B5 → P2A → B6 → B7/B8 →
 Return:    P3A/P3B → B9/B10 → B11 → P2B → B12 → B13/B14 → P1A/P1B → B1/B2 → Y
 """
 
+from datetime import UTC, datetime
 from typing import Final
 
 # Directed adjacency: node → list of reachable next nodes
@@ -51,6 +52,12 @@ BATTERY_COST_PER_BLOCK: Final[float] = 1.0
 BATTERY_THRESHOLD: Final[float] = 30.0
 BATTERY_MIN_DEPARTURE: Final[float] = 80.0
 BATTERY_CHARGE_RATE: Final[float] = 1 / 12  # units per second
+
+# Sentinel timestamp for the BASELINE ledger event: any realistic service
+# start_time is strictly greater, so `battery_before(start_time)` always
+# includes the vehicle's initial charge, even for schedules created after
+# the vehicle row itself.
+BATTERY_BASELINE_EPOCH: Final[datetime] = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 # Precomputed block → interlocking group lookup (O(1) vs scanning INTERLOCKING_GROUPS)

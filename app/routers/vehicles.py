@@ -10,6 +10,7 @@ from app.logic.battery import current_battery, emit_baseline, emit_manual_adjust
 from app.models.service import Service
 from app.models.vehicle import Vehicle
 from app.schemas.vehicle import VehicleCreate, VehicleRead, VehicleUpdate
+from app.topology import BATTERY_BASELINE_EPOCH
 
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
 
@@ -46,7 +47,11 @@ async def create_vehicle(payload: VehicleCreate, db: AsyncSession = Depends(get_
         await db.rollback()
         raise HTTPException(status_code=409, detail="Vehicle name already exists") from exc
 
-    await emit_baseline(db, vehicle.id, payload.battery_level, datetime.now(UTC))
+    # Baseline is pinned to a sentinel epoch so any future schedule — even one
+    # whose start_time precedes the vehicle row's creation clock — sees the
+    # vehicle's initial charge. Without this, `battery_before(start_time)`
+    # returns 0 and the generator reports spurious insufficient_charge.
+    await emit_baseline(db, vehicle.id, payload.battery_level, BATTERY_BASELINE_EPOCH)
 
     try:
         await db.commit()

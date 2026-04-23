@@ -115,4 +115,19 @@ async def emit_service_consume(
     )
 
 
+async def emit_yard_charge(
+    db: AsyncSession, vehicle_id: int, occurred_at: datetime, delta: float
+) -> None:
+    """Record a positive charge event for time spent idle at the yard."""
+    db.add(
+        BatteryEvent(
+            vehicle_id=vehicle_id,
+            service_id=None,
+            event_type=BatteryEventType.YARD_CHARGE,
+            occurred_at=occurred_at,
+            delta=delta,
+        )
+    )
+
+
 DEFAULT_BASELINE = BATTERY_INITIAL

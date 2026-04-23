@@ -68,6 +68,10 @@ class TestGenerateSchedule:
         for svc in created:
             assert svc["vehicle_id"] == vid
 
+        # Bonus 3 contract: generated services must have no conflicts of any kind.
+        conflicts = (await client.get("/api/v1/schedule/conflicts")).json()
+        assert conflicts == [], conflicts
+
     async def test_multi_vehicles_are_offset_and_no_conflicts(self, client):
         v1 = await _make_vehicle(client, "v1")
         v2 = await _make_vehicle(client, "v2")
@@ -86,9 +90,30 @@ class TestGenerateSchedule:
         vehicles_used = {svc["vehicle_id"] for svc in r.json()}
         assert vehicles_used == {v1, v2}
 
-        # No resulting block/interlocking conflicts
+        # Bonus 3 contract: generated services must have no conflicts of any kind.
         conflicts = (await client.get("/api/v1/schedule/conflicts")).json()
-        assert not any(
-            c["conflict_type"] in ("interlocking", "vehicle_overlap", "vehicle_discontinuity")
-            for c in conflicts
+        assert conflicts == [], conflicts
+
+    async def test_generated_schedule_has_no_battery_conflicts(self, client):
+        """Without yard-charge events the second service would depart with
+        battery 70 < 80 and trip the `insufficient_charge` detector."""
+        vid = await _make_vehicle(client, "v1")
+        r = await client.post(
+            "/api/v1/schedule/generate",
+            json={
+                "vehicle_ids": [vid],
+                "start_time": T0.isoformat(),
+                "end_time": (T0 + timedelta(hours=3)).isoformat(),
+                "departure_interval_minutes": 30,
+                "platform_dwell_seconds": 60,
+            },
         )
+        assert r.status_code == 201, r.text
+        assert len(r.json()) >= 2
+
+        conflicts = (await client.get("/api/v1/schedule/conflicts")).json()
+        battery_conflicts = [
+            c for c in conflicts
+            if c["conflict_type"] in ("insufficient_charge", "low_battery")
+        ]
+        assert battery_conflicts == [], battery_conflicts

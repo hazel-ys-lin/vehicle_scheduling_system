@@ -21,12 +21,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.logic.battery import (
+    battery_at,
     battery_before,
     emit_service_consume,
+    emit_yard_charge,
     service_consume_delta,
 )
 from app.logic.conflict_detector import (
     ServiceSnapshot,
+    detect_battery_conflicts,
     detect_block_conflicts,
     detect_vehicle_conflicts,
 )
@@ -34,7 +37,13 @@ from app.logic.snapshots import build_snapshots
 from app.models.block_config import BlockConfig
 from app.models.service import Service, ServiceStop
 from app.models.vehicle import Vehicle
-from app.topology import is_block, is_platform
+from app.topology import (
+    BATTERY_CHARGE_RATE,
+    BATTERY_MAX,
+    YARD,
+    is_block,
+    is_platform,
+)
 
 # Default round-trip path: Y → B1 → P1A → B3 → B5 → P2A → B6 → B7 → P3A
 #                           → B10 → B11 → P2B → B12 → B13 → P1A → B1 → Y
@@ -147,6 +156,10 @@ async def generate_schedule(req: GenerateRequest, db: AsyncSession) -> list[Serv
     created: list[Service] = []
     for idx, vehicle in enumerate(vehicles):
         slot = req.start_time + per_vehicle_offset * idx
+        # Trip end of the most recently committed service for this vehicle, iff
+        # it ended at the yard (so the vehicle is idle-charging until the next
+        # departure). None means no prior service yet.
+        last_yard_idle_since: datetime | None = None
         while slot < req.end_time:
             stop_tuples = _compute_stops(
                 DEFAULT_ROUND_TRIP, slot, block_traversal, req.platform_dwell_seconds
@@ -155,7 +168,21 @@ async def generate_schedule(req: GenerateRequest, db: AsyncSession) -> list[Serv
             if trip_end > req.end_time:
                 break
 
-            dep_battery = await battery_before(db, vehicle.id, slot)
+            # If the vehicle has been sitting at the yard since its previous
+            # trip ended, credit that idle time as charging. We compute the
+            # delta in memory first so we can reject this slot cleanly before
+            # any event is written.
+            charge_delta = 0.0
+            if last_yard_idle_since is not None and slot > last_yard_idle_since:
+                battery_at_idle_start = await battery_at(db, vehicle.id, last_yard_idle_since)
+                gap_seconds = (slot - last_yard_idle_since).total_seconds()
+                charge_available = gap_seconds * BATTERY_CHARGE_RATE
+                charge_delta = max(
+                    0.0,
+                    min(charge_available, BATTERY_MAX - battery_at_idle_start),
+                )
+
+            dep_battery = await battery_before(db, vehicle.id, slot) + charge_delta
 
             candidate = ServiceSnapshot(
                 service_id=-(len(created) + 1),
@@ -164,9 +191,23 @@ async def generate_schedule(req: GenerateRequest, db: AsyncSession) -> list[Serv
                 departure_battery=dep_battery,
             )
             all_for_check = committed_snapshots + [candidate]
-            if detect_block_conflicts(all_for_check) or detect_vehicle_conflicts(all_for_check):
+            if (
+                detect_block_conflicts(all_for_check)
+                or detect_vehicle_conflicts(all_for_check)
+                or detect_battery_conflicts(candidate)
+            ):
                 slot += interval
                 continue
+
+            if charge_delta > 0:
+                # occurred_at strictly before `slot` so battery_before(slot)
+                # picks it up on subsequent reads.
+                await emit_yard_charge(
+                    db,
+                    vehicle.id,
+                    slot - timedelta(microseconds=1),
+                    charge_delta,
+                )
 
             svc = Service(vehicle_id=vehicle.id, departure_battery=dep_battery)
             db.add(svc)
@@ -201,6 +242,7 @@ async def generate_schedule(req: GenerateRequest, db: AsyncSession) -> list[Serv
                 )
             )
             created.append(svc)
+            last_yard_idle_since = trip_end if stop_tuples[-1][0] == YARD else None
             slot += interval
 
     wait_errors = _check_passenger_wait(committed_snapshots, interval)
